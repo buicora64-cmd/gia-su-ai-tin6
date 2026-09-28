@@ -1,0 +1,6 @@
+{
+  "name": "Ôn Tập Tin Học 6 - Kết Nối Tri Thức",
+  "description": "Ứng dụng tạo câu hỏi ôn tập và kiểm tra môn Tin học 6 (Kết nối tri thức với cuộc sống). Học sinh chọn bài học, số câu hỏi và 3 cấp độ (Nhận biết, Thông hiểu, Vận dụng, Tổng hợp).",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
