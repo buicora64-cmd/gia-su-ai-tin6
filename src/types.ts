@@ -73,3 +73,13 @@ export interface QuizResult {
     van_dung: { total: number; correct: number };
   };
 }
+
+export interface UserProfile {
+  id: string;
+  username: string;
+  fullName: string;
+  studentClass?: string;
+  email?: string;
+  role?: 'student' | 'teacher' | 'admin';
+  createdAt?: string;
+}

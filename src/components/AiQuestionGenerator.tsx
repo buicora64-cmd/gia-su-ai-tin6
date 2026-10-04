@@ -9,12 +9,14 @@ import {
   Loader2, 
   AlertCircle,
   Cpu,
-  Flame
+  Flame,
+  Database
 } from 'lucide-react';
 import { LESSONS } from '../data/lessons';
 import { DifficultyLevel, Question, QuizSettings } from '../types';
 import { synthesizeQuestionsForLesson } from '../utils/aiGeneratorEngine';
 import { playCompleteFanfare } from '../utils/audio';
+import { uploadQuestionsToSupabase, isSupabaseConfigured } from '../lib/supabase';
 
 interface AiQuestionGeneratorProps {
   onStartWithGeneratedQuestions: (questions: Question[]) => void;
@@ -34,6 +36,8 @@ export const AiQuestionGenerator: React.FC<AiQuestionGeneratorProps> = ({
   const [sourceTag, setSourceTag] = useState<string>('AI');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [addedSuccess, setAddedSuccess] = useState<boolean>(false);
+  const [isSavingToSupabase, setIsSavingToSupabase] = useState<boolean>(false);
+  const [supabaseSaveSuccess, setSupabaseSaveSuccess] = useState<boolean>(false);
 
   const selectedLesson = LESSONS.find((l) => l.id === selectedLessonId) || LESSONS[0];
 
@@ -111,6 +115,20 @@ export const AiQuestionGenerator: React.FC<AiQuestionGeneratorProps> = ({
       onAddQuestionsToBank(generatedQuestions);
       setAddedSuccess(true);
       setTimeout(() => setAddedSuccess(false), 3000);
+    }
+  };
+
+  const handleSaveToSupabase = async () => {
+    if (generatedQuestions.length === 0) return;
+    setIsSavingToSupabase(true);
+    const res = await uploadQuestionsToSupabase(generatedQuestions);
+    setIsSavingToSupabase(false);
+    if (res.success) {
+      setSupabaseSaveSuccess(true);
+      onAddQuestionsToBank(generatedQuestions);
+      setTimeout(() => setSupabaseSaveSuccess(false), 3500);
+    } else {
+      alert(`Chưa thể lưu lên Supabase: ${res.error}`);
     }
   };
 
@@ -261,18 +279,32 @@ export const AiQuestionGenerator: React.FC<AiQuestionGeneratorProps> = ({
               </p>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
                 onClick={handleAddToBank}
-                className="px-4 py-2 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-semibold transition-colors"
+                className="px-3.5 py-2 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-semibold transition-colors"
               >
-                {addedSuccess ? '✓ Đã thêm vào kho!' : 'Thêm vào ngân hàng'}
+                {addedSuccess ? '✓ Đã thêm vào kho!' : 'Thêm vào kho máy'}
               </button>
+
+              {isSupabaseConfigured && (
+                <button
+                  type="button"
+                  onClick={handleSaveToSupabase}
+                  disabled={isSavingToSupabase}
+                  className="px-3.5 py-2 rounded-xl border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  title="Lưu các câu hỏi này lên Supabase Cloud database"
+                >
+                  <Database className={`w-3.5 h-3.5 text-emerald-600 ${isSavingToSupabase ? 'animate-spin' : ''}`} />
+                  <span>{supabaseSaveSuccess ? '✓ Đã lưu lên Supabase!' : isSavingToSupabase ? 'Đang lưu...' : 'Lưu lên Supabase'}</span>
+                </button>
+              )}
+
               <button
                 type="button"
                 onClick={handleStartExam}
-                className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs sm:text-sm shadow-xs transition-colors flex items-center gap-1.5"
+                className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs sm:text-sm shadow-xs transition-colors flex items-center gap-1.5"
               >
                 <Play className="w-3.5 h-3.5 fill-white" />
                 <span>Làm Ngay Bộ Đề Này</span>

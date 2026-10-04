@@ -11,22 +11,34 @@ import {
   Menu, 
   X,
   Compass,
-  Award
+  Award,
+  Database,
+  User,
+  LogOut,
+  LogIn,
+  GraduationCap
 } from 'lucide-react';
 import { isSoundEnabled, setSoundEnabled } from '../utils/audio';
+import { UserProfile } from '../types';
 
 interface SidebarProps {
-  activeTab: 'quiz' | 'bank' | 'notes' | 'ai' | 'flashcard';
-  setActiveTab: (tab: 'quiz' | 'bank' | 'notes' | 'ai' | 'flashcard') => void;
+  activeTab: 'quiz' | 'bank' | 'notes' | 'ai' | 'flashcard' | 'supabase';
+  setActiveTab: (tab: 'quiz' | 'bank' | 'notes' | 'ai' | 'flashcard' | 'supabase') => void;
   onOpenPrint?: () => void;
   totalQuestionsCount: number;
+  currentUser: UserProfile | null;
+  onLogout: () => void;
+  onOpenLogin: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
   activeTab,
   setActiveTab,
   onOpenPrint,
-  totalQuestionsCount
+  totalQuestionsCount,
+  currentUser,
+  onLogout,
+  onOpenLogin,
 }) => {
   const [soundOn, setSoundOn] = useState(isSoundEnabled());
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -37,7 +49,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     setSoundEnabled(next);
   };
 
-  const handleSelectTab = (tab: 'quiz' | 'bank' | 'notes' | 'ai' | 'flashcard') => {
+  const handleSelectTab = (tab: 'quiz' | 'bank' | 'notes' | 'ai' | 'flashcard' | 'supabase') => {
     setActiveTab(tab);
     setMobileOpen(false);
   };
@@ -103,6 +115,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
       badge: 'Gemini AI',
       badgeStyle: 'bg-gradient-to-r from-yellow-400/30 to-orange-400/30 text-yellow-200 border border-yellow-400/40',
     },
+    {
+      id: 'supabase' as const,
+      label: 'Supabase Cloud',
+      desc: 'Đồng bộ CSDL đám mây',
+      icon: Database,
+      color: 'text-emerald-400',
+      activeStyle: 'bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-600 text-white font-bold shadow-lg shadow-emerald-950/60 border border-emerald-400/40 ring-1 ring-white/20',
+      inactiveIconBg: 'bg-emerald-500/10 text-emerald-400',
+      activeIconBg: 'bg-white/20 text-white',
+      badge: 'Đã nối',
+      badgeStyle: 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30',
+    },
   ];
 
   return (
@@ -130,7 +154,27 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
+          {currentUser ? (
+            <button
+              onClick={onOpenLogin}
+              title={`Tài khoản: ${currentUser.fullName}`}
+              className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-xs font-semibold text-white border border-white/15"
+            >
+              <div className="w-5 h-5 rounded-full bg-amber-400 text-slate-900 flex items-center justify-center text-[10px] font-black">
+                {currentUser.fullName ? currentUser.fullName.charAt(0).toUpperCase() : 'U'}
+              </div>
+              <span className="max-w-[70px] truncate">{currentUser.fullName.split(' ').pop()}</span>
+            </button>
+          ) : (
+            <button
+              onClick={onOpenLogin}
+              className="px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold border border-indigo-400/40"
+            >
+              Đăng nhập
+            </button>
+          )}
+
           {onOpenPrint && (
             <button
               onClick={onOpenPrint}
@@ -256,8 +300,46 @@ export const Sidebar: React.FC<SidebarProps> = ({
           })}
         </nav>
 
+        {/* User Account / Profile Section */}
+        <div className="px-3 pt-2 pb-1 relative z-10">
+          {currentUser ? (
+            <div className="p-3 rounded-2xl bg-white/10 border border-white/15 backdrop-blur-md flex items-center justify-between gap-2 shadow-xs group">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-sky-400 via-indigo-500 to-amber-400 p-0.5 shrink-0">
+                  <div className="w-full h-full bg-slate-900 rounded-[10px] flex items-center justify-center font-black text-xs text-white">
+                    {currentUser.fullName ? currentUser.fullName.charAt(0).toUpperCase() : 'U'}
+                  </div>
+                </div>
+                <div className="min-w-0">
+                  <span className="text-xs font-bold text-white block truncate">
+                    {currentUser.fullName}
+                  </span>
+                  <span className="text-[10px] text-amber-300 block truncate font-medium">
+                    @{currentUser.username} {currentUser.studentClass ? `• ${currentUser.studentClass}` : ''}
+                  </span>
+                </div>
+              </div>
+              <button
+                onClick={onLogout}
+                title="Đăng xuất khỏi tài khoản"
+                className="p-1.5 rounded-lg text-slate-400 hover:text-rose-300 hover:bg-rose-500/20 transition-colors shrink-0 cursor-pointer"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={onOpenLogin}
+              className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-indigo-600 via-indigo-500 to-indigo-600 hover:brightness-110 border border-indigo-400/40 text-white text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md"
+            >
+              <LogIn className="w-4 h-4" />
+              <span>Đăng Nhập / Đăng Ký</span>
+            </button>
+          )}
+        </div>
+
         {/* Bottom Utility Tools Section */}
-        <div className="p-4 m-3 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-md space-y-2.5 relative z-10 shadow-inner">
+        <div className="p-4 m-3 mt-1 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-md space-y-2.5 relative z-10 shadow-inner">
           <div className="flex items-center justify-between px-1">
             <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-300 block">
               Tiện Ích & Công Cụ

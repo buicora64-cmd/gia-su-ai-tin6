@@ -13,15 +13,22 @@ import { LessonNotes } from './components/LessonNotes';
 import { FlashcardsView } from './components/FlashcardsView';
 import { AiQuestionGenerator } from './components/AiQuestionGenerator';
 import { PrintExamModal } from './components/PrintExamModal';
-import { Question, QuizResult, QuizSettings } from './types';
+import { SupabaseSyncView } from './components/SupabaseSyncView';
+import { AuthModal } from './components/AuthModal';
+import { Question, QuizResult, QuizSettings, UserProfile } from './types';
 import { generateQuizQuestions } from './utils/quizGenerator';
 import { INITIAL_QUESTIONS } from './data/questions';
+import { saveQuizResultToSupabase, fetchQuestionsFromSupabase, getStoredUser, signOutUser } from './lib/supabase';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'quiz' | 'bank' | 'notes' | 'ai' | 'flashcard'>('quiz');
+  const [activeTab, setActiveTab] = useState<'quiz' | 'bank' | 'notes' | 'ai' | 'flashcard' | 'supabase'>('quiz');
   const [appState, setAppState] = useState<'config' | 'running' | 'result'>('config');
   
-  // Custom question bank state in case user generated AI questions
+  // User Authentication state
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => getStoredUser());
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(() => !getStoredUser());
+
+  // Custom question bank state in case user generated AI questions or synced with Supabase
   const [questionBank, setQuestionBank] = useState<Question[]>(INITIAL_QUESTIONS);
 
   // Active quiz session data
@@ -80,6 +87,32 @@ export default function App() {
   const handleFinishQuiz = (result: QuizResult) => {
     setQuizResult(result);
     setAppState('result');
+
+    // Automatically persist result to Supabase Cloud in background with user information
+    saveQuizResultToSupabase(result, currentUser).catch((err) => {
+      console.warn('Failed to auto-save result to Supabase:', err);
+    });
+  };
+
+  // User auth handlers
+  const handleLoginSuccess = (user: UserProfile) => {
+    setCurrentUser(user);
+    setIsAuthModalOpen(false);
+  };
+
+  const handleLogout = async () => {
+    await signOutUser();
+    setCurrentUser(null);
+    setIsAuthModalOpen(true);
+  };
+
+  const handleOpenLogin = () => {
+    setIsAuthModalOpen(true);
+  };
+
+  // Update question bank from Supabase sync
+  const handleUpdateQuestionsFromSupabase = (syncedQuestions: Question[]) => {
+    setQuestionBank(syncedQuestions);
   };
 
   // Exit quiz back to configuration
@@ -152,6 +185,9 @@ export default function App() {
         }}
         onOpenPrint={handleOpenPrintDirect}
         totalQuestionsCount={questionBank.length}
+        currentUser={currentUser}
+        onLogout={handleLogout}
+        onOpenLogin={handleOpenLogin}
       />
 
       {/* Main Content Area (Offset by sidebar width on desktop) */}
@@ -210,6 +246,13 @@ export default function App() {
                   onAddQuestionsToBank={handleAddQuestionsToBank}
                 />
               )}
+
+              {activeTab === 'supabase' && (
+                <SupabaseSyncView
+                  currentQuestions={questionBank}
+                  onQuestionsUpdated={handleUpdateQuestionsFromSupabase}
+                />
+              )}
             </>
           )}
         </main>
@@ -236,6 +279,14 @@ export default function App() {
           questions={printQuestions}
           settings={printSettings}
           onClose={() => setIsPrintModalOpen(false)}
+        />
+      )}
+
+      {/* Login & Register Authentication Modal (Shown before accessing web or on demand) */}
+      {isAuthModalOpen && (
+        <AuthModal
+          onLoginSuccess={handleLoginSuccess}
+          onContinueAsGuest={() => setIsAuthModalOpen(false)}
         />
       )}
     </div>
