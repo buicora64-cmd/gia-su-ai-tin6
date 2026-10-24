@@ -119,6 +119,14 @@ export const QuizRunner: React.FC<QuizRunnerProps> = ({
     }));
   };
 
+  const handleResetCurrentAnswer = () => {
+    setAnswers((prev) => {
+      const copy = { ...prev };
+      delete copy[currentQ.id];
+      return copy;
+    });
+  };
+
   const handleToggleFlag = () => {
     setFlagged((prev) => ({
       ...prev,
@@ -383,16 +391,27 @@ export const QuizRunner: React.FC<QuizRunnerProps> = ({
                   ? 'bg-emerald-50/70 border-emerald-200 text-emerald-950'
                   : 'bg-amber-50/70 border-amber-200 text-amber-950'
               }`}>
-                <div className="flex items-center gap-2 font-bold text-sm mb-1.5">
-                  {selectedAnswer === currentQ.correctAnswer ? (
-                    <span className="text-emerald-700 flex items-center gap-1.5">
-                      <CheckCircle2 className="w-4 h-4" /> Chính xác!
-                    </span>
-                  ) : (
-                    <span className="text-rose-700 flex items-center gap-1.5">
-                      <XCircle className="w-4 h-4" /> Chưa chính xác. Đáp án đúng là {['A', 'B', 'C', 'D'][currentQ.correctAnswer]}.
-                    </span>
-                  )}
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <div className="flex items-center gap-2 font-bold text-sm">
+                    {selectedAnswer === currentQ.correctAnswer ? (
+                      <span className="text-emerald-700 flex items-center gap-1.5">
+                        <CheckCircle2 className="w-4 h-4" /> Chính xác!
+                      </span>
+                    ) : (
+                      <span className="text-rose-700 flex items-center gap-1.5">
+                        <XCircle className="w-4 h-4" /> Chưa chính xác. Đáp án đúng là {['A', 'B', 'C', 'D'][currentQ.correctAnswer]}.
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleResetCurrentAnswer}
+                    className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-500 hover:text-indigo-600 px-2 py-1 rounded-md hover:bg-white/80 transition-colors border border-slate-200/60 cursor-pointer"
+                    title="Bỏ chọn để làm lại câu này"
+                  >
+                    <RotateCcw className="w-3 h-3" />
+                    <span>Chọn lại câu này</span>
+                  </button>
                 </div>
                 <p className="text-xs sm:text-sm text-slate-700 leading-relaxed">
                   {currentQ.explanation}
@@ -493,19 +512,32 @@ export const QuizRunner: React.FC<QuizRunnerProps> = ({
             <div className="text-[11px] text-slate-500 space-y-1.5 pt-2 border-t border-slate-100">
               <div className="flex items-center gap-2">
                 <span className="w-3 h-3 rounded-md bg-indigo-600" />
-                <span>Đang làm</span>
+                <span>Đang chọn</span>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="w-3 h-3 rounded-md bg-indigo-100 border border-indigo-300" />
-                <span>Đã trả lời</span>
-              </div>
+              {isPractice ? (
+                <>
+                  <div className="flex items-center gap-2">
+                    <span className="w-3 h-3 rounded-md bg-emerald-100 border border-emerald-300" />
+                    <span>Đã làm: Trả lời đúng</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="w-3 h-3 rounded-md bg-rose-100 border border-rose-300" />
+                    <span>Đã làm: Trả lời chưa đúng</span>
+                  </div>
+                </>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <span className="w-3 h-3 rounded-md bg-indigo-100 border border-indigo-300" />
+                  <span>Đã chọn đáp án</span>
+                </div>
+              )}
               <div className="flex items-center gap-2">
                 <span className="w-3 h-3 rounded-md bg-slate-50 border border-slate-200" />
                 <span>Chưa làm</span>
               </div>
               <div className="flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-amber-500" />
-                <span>Có đánh dấu</span>
+                <span>Có đánh dấu xem lại</span>
               </div>
             </div>
 

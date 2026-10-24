@@ -38,6 +38,9 @@ export function generateQuizQuestions(settings: QuizSettings): Question[] {
     pool = [...INITIAL_QUESTIONS];
   }
 
+  // Maximum unique questions cannot exceed the pool's size
+  const targetCount = Math.min(questionCount, pool.length);
+
   let selectedQuestions: Question[] = [];
 
   if (difficulty === 'tong_hop') {
@@ -45,28 +48,89 @@ export function generateQuizQuestions(settings: QuizSettings): Question[] {
     const ratio = matrixRatio || { nhanBiet: 40, thongHieu: 30, vanDung: 30 };
     const totalWeight = ratio.nhanBiet + ratio.thongHieu + ratio.vanDung;
 
-    let countNB = Math.round((ratio.nhanBiet / totalWeight) * questionCount);
-    let countTH = Math.round((ratio.thongHieu / totalWeight) * questionCount);
-    let countVD = questionCount - countNB - countTH;
-
-    if (countVD < 0) {
-      countVD = 0;
-      countTH = Math.max(0, questionCount - countNB);
-    }
-
     const poolNB = pool.filter((q) => q.level === 'nhan_biet');
     const poolTH = pool.filter((q) => q.level === 'thong_hieu');
     const poolVD = pool.filter((q) => q.level === 'van_dung');
 
-    const pickedNB = pickFromPool(poolNB, countNB, pool);
-    const pickedTH = pickFromPool(poolTH, countTH, pool);
-    const pickedVD = pickFromPool(poolVD, countVD, pool);
+    let countNB = Math.round((ratio.nhanBiet / totalWeight) * targetCount);
+    let countTH = Math.round((ratio.thongHieu / totalWeight) * targetCount);
+    let countVD = targetCount - countNB - countTH;
 
-    selectedQuestions = [...pickedNB, ...pickedTH, ...pickedVD];
+    if (countVD < 0) {
+      countVD = 0;
+      countTH = Math.max(0, targetCount - countNB);
+    }
+
+    const usedIds = new Set<string>();
+    const picked: Question[] = [];
+
+    // Pick from NB
+    const shuffledNB = shuffleArray(poolNB);
+    for (const q of shuffledNB) {
+      if (picked.length >= countNB) break;
+      if (!usedIds.has(q.id)) {
+        picked.push(q);
+        usedIds.add(q.id);
+      }
+    }
+
+    // Pick from TH
+    const shuffledTH = shuffleArray(poolTH);
+    const targetWithTH = picked.length + countTH;
+    for (const q of shuffledTH) {
+      if (picked.length >= targetWithTH) break;
+      if (!usedIds.has(q.id)) {
+        picked.push(q);
+        usedIds.add(q.id);
+      }
+    }
+
+    // Pick from VD
+    const shuffledVD = shuffleArray(poolVD);
+    const targetWithVD = picked.length + countVD;
+    for (const q of shuffledVD) {
+      if (picked.length >= targetWithVD) break;
+      if (!usedIds.has(q.id)) {
+        picked.push(q);
+        usedIds.add(q.id);
+      }
+    }
+
+    // If still need more to reach targetCount, fill with remaining unique questions from pool
+    if (picked.length < targetCount) {
+      const remaining = shuffleArray(pool.filter((q) => !usedIds.has(q.id)));
+      for (const q of remaining) {
+        if (picked.length >= targetCount) break;
+        picked.push(q);
+        usedIds.add(q.id);
+      }
+    }
+
+    selectedQuestions = picked;
   } else {
     // Single specific level
     const levelPool = pool.filter((q) => q.level === difficulty);
-    selectedQuestions = pickFromPool(levelPool, questionCount, pool);
+    const shuffledLevel = shuffleArray(levelPool);
+    const usedIds = new Set<string>();
+    const picked: Question[] = [];
+
+    for (const q of shuffledLevel) {
+      if (picked.length >= targetCount) break;
+      picked.push(q);
+      usedIds.add(q.id);
+    }
+
+    // If level pool has fewer items, fill from other levels in the selected pool without duplicates
+    if (picked.length < targetCount) {
+      const remaining = shuffleArray(pool.filter((q) => !usedIds.has(q.id)));
+      for (const q of remaining) {
+        if (picked.length >= targetCount) break;
+        picked.push(q);
+        usedIds.add(q.id);
+      }
+    }
+
+    selectedQuestions = picked;
   }
 
   // Shuffle order of questions
@@ -77,40 +141,11 @@ export function generateQuizQuestions(settings: QuizSettings): Question[] {
     selectedQuestions = selectedQuestions.map((q) => shuffleQuestionOptions(q));
   }
 
-  return selectedQuestions;
-}
-
-function pickFromPool(levelPool: Question[], targetCount: number, generalPool: Question[]): Question[] {
-  if (targetCount <= 0) return [];
-  const shuffledLevel = shuffleArray(levelPool);
-  
-  if (shuffledLevel.length >= targetCount) {
-    return shuffledLevel.slice(0, targetCount);
-  }
-
-  // If level pool has fewer items, take all of them and fill from general pool
-  const result = [...shuffledLevel];
-  const remaining = targetCount - result.length;
-  const existingIds = new Set(result.map((q) => q.id));
-
-  const availableInGeneral = generalPool.filter((q) => !existingIds.has(q.id));
-  const shuffledGeneral = shuffleArray(availableInGeneral);
-
-  for (let i = 0; i < remaining && i < shuffledGeneral.length; i++) {
-    result.push(shuffledGeneral[i]);
-    existingIds.add(shuffledGeneral[i].id);
-  }
-
-  // If still need more (e.g. user requested 30 questions on a single lesson), clone with unique ID
-  while (result.length < targetCount && levelPool.length > 0) {
-    const template = levelPool[Math.floor(Math.random() * levelPool.length)];
-    result.push({
-      ...template,
-      id: `${template.id}-copy-${result.length}`,
-    });
-  }
-
-  return result.slice(0, targetCount);
+  // Guarantee 100% unique ID per question instance in this test session
+  return selectedQuestions.map((q, idx) => ({
+    ...q,
+    id: `${q.id}__#${idx + 1}`,
+  }));
 }
 
 export function getQuestionsCountByLesson(lessonId: number): {

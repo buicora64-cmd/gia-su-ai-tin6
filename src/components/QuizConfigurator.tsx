@@ -131,9 +131,12 @@ export const QuizConfigurator: React.FC<QuizConfiguratorProps> = ({
       ? parseInt(customCountInput, 10) || 10
       : questionCount;
 
+    const maxAvailable = pool.length > 0 ? pool.length : INITIAL_QUESTIONS.length;
+    const safeCount = Math.min(maxAvailable, Math.max(1, finalCount));
+
     const settings: QuizSettings = {
       selectedLessonIds: isAllSelected ? [] : selectedLessonIds,
-      questionCount: Math.min(50, Math.max(1, finalCount)),
+      questionCount: safeCount,
       difficulty,
       mode,
       timeLimitMinutes: mode === 'exam' ? timeLimitMinutes : 0,
@@ -149,9 +152,12 @@ export const QuizConfigurator: React.FC<QuizConfiguratorProps> = ({
       ? parseInt(customCountInput, 10) || 10
       : questionCount;
 
+    const maxAvailable = pool.length > 0 ? pool.length : INITIAL_QUESTIONS.length;
+    const safeCount = Math.min(maxAvailable, Math.max(1, finalCount));
+
     const settings: QuizSettings = {
       selectedLessonIds: isAllSelected ? [] : selectedLessonIds,
-      questionCount: Math.min(50, Math.max(1, finalCount)),
+      questionCount: safeCount,
       difficulty,
       mode,
       timeLimitMinutes,
@@ -380,6 +386,16 @@ export const QuizConfigurator: React.FC<QuizConfiguratorProps> = ({
               )}
             </div>
           </div>
+
+          {/* Info note if pool has fewer questions than requested */}
+          {pool.length < (isCustomCount ? (parseInt(customCountInput, 10) || questionCount) : questionCount) && (
+            <div className="p-3 rounded-2xl bg-amber-50/80 border border-amber-200 text-amber-900 text-xs flex items-center gap-2">
+              <Info className="w-4 h-4 text-amber-600 shrink-0" />
+              <span>
+                Các bài học đã chọn hiện có <strong>{pool.length} câu hỏi</strong> chuẩn. Hệ thống sẽ tự động tạo đề với tối đa <strong>{pool.length} câu hỏi duy nhất</strong>, không bị trùng lặp câu.
+              </span>
+            </div>
+          )}
         </div>
 
         {/* ================= SECTION 3: 3 CẤP ĐỘ VÀ TỔNG HỢP 3 CẤP ĐỘ ================= */}
