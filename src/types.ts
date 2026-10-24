@@ -83,3 +83,29 @@ export interface UserProfile {
   role?: 'student' | 'teacher' | 'admin';
   createdAt?: string;
 }
+
+export interface ScoreRecord {
+  id: string;
+  username: string;
+  fullName: string;
+  studentClass: string;
+  score: number;
+  correctCount: number;
+  totalQuestions: number;
+  percentage: number;
+  rating: string;
+  timeSpentSeconds: number;
+  formattedTime: string;
+  testTitle: string;
+  mode: 'practice' | 'exam';
+  date: string;
+  formattedDate: string;
+  levelStats?: {
+    nhanBietCorrect?: number;
+    nhanBietTotal?: number;
+    thongHieuCorrect?: number;
+    thongHieuTotal?: number;
+    vanDungCorrect?: number;
+    vanDungTotal?: number;
+  };
+}

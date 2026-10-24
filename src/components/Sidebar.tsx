@@ -16,14 +16,15 @@ import {
   User,
   LogOut,
   LogIn,
-  GraduationCap
+  GraduationCap,
+  FileSpreadsheet
 } from 'lucide-react';
 import { isSoundEnabled, setSoundEnabled } from '../utils/audio';
 import { UserProfile } from '../types';
 
 interface SidebarProps {
-  activeTab: 'quiz' | 'bank' | 'notes' | 'ai' | 'flashcard' | 'supabase';
-  setActiveTab: (tab: 'quiz' | 'bank' | 'notes' | 'ai' | 'flashcard' | 'supabase') => void;
+  activeTab: 'quiz' | 'bank' | 'notes' | 'ai' | 'flashcard' | 'supabase' | 'scores';
+  setActiveTab: (tab: 'quiz' | 'bank' | 'notes' | 'ai' | 'flashcard' | 'supabase' | 'scores') => void;
   onOpenPrint?: () => void;
   totalQuestionsCount: number;
   currentUser: UserProfile | null;
@@ -49,7 +50,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     setSoundEnabled(next);
   };
 
-  const handleSelectTab = (tab: 'quiz' | 'bank' | 'notes' | 'ai' | 'flashcard' | 'supabase') => {
+  const handleSelectTab = (tab: 'quiz' | 'bank' | 'notes' | 'ai' | 'flashcard' | 'supabase' | 'scores') => {
     setActiveTab(tab);
     setMobileOpen(false);
   };
@@ -116,12 +117,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
       badgeStyle: 'bg-gradient-to-r from-yellow-400/30 to-orange-400/30 text-yellow-200 border border-yellow-400/40',
     },
     {
+      id: 'scores' as const,
+      label: 'Sổ Điểm & Xuất Excel',
+      desc: 'Bảng điểm & xuất file Excel',
+      icon: FileSpreadsheet,
+      color: 'text-emerald-300',
+      activeStyle: 'bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-600 text-white font-bold shadow-lg shadow-emerald-950/60 border border-emerald-400/40 ring-1 ring-white/20',
+      inactiveIconBg: 'bg-emerald-500/10 text-emerald-300',
+      activeIconBg: 'bg-white/20 text-white',
+      badge: 'Excel .XLSX',
+      badgeStyle: 'bg-emerald-500/25 text-emerald-200 border border-emerald-400/40 font-black',
+    },
+    {
       id: 'supabase' as const,
       label: 'Supabase Cloud',
       desc: 'Đồng bộ CSDL đám mây',
       icon: Database,
       color: 'text-emerald-400',
-      activeStyle: 'bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-600 text-white font-bold shadow-lg shadow-emerald-950/60 border border-emerald-400/40 ring-1 ring-white/20',
+      activeStyle: 'bg-gradient-to-r from-teal-600 via-emerald-600 to-teal-600 text-white font-bold shadow-lg shadow-teal-950/60 border border-teal-400/40 ring-1 ring-white/20',
       inactiveIconBg: 'bg-emerald-500/10 text-emerald-400',
       activeIconBg: 'bg-white/20 text-white',
       badge: 'Đã nối',

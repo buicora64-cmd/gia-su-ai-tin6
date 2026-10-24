@@ -14,6 +14,7 @@ import { FlashcardsView } from './components/FlashcardsView';
 import { AiQuestionGenerator } from './components/AiQuestionGenerator';
 import { PrintExamModal } from './components/PrintExamModal';
 import { SupabaseSyncView } from './components/SupabaseSyncView';
+import { ScoreManagementView } from './components/ScoreManagementView';
 import { AuthModal } from './components/AuthModal';
 import { Question, QuizResult, QuizSettings, UserProfile } from './types';
 import { generateQuizQuestions } from './utils/quizGenerator';
@@ -21,7 +22,7 @@ import { INITIAL_QUESTIONS } from './data/questions';
 import { saveQuizResultToSupabase, fetchQuestionsFromSupabase, getStoredUser, signOutUser } from './lib/supabase';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'quiz' | 'bank' | 'notes' | 'ai' | 'flashcard' | 'supabase'>('quiz');
+  const [activeTab, setActiveTab] = useState<'quiz' | 'bank' | 'notes' | 'ai' | 'flashcard' | 'supabase' | 'scores'>('quiz');
   const [appState, setAppState] = useState<'config' | 'running' | 'result'>('config');
   
   // User Authentication state
@@ -247,6 +248,12 @@ export default function App() {
                 />
               )}
 
+              {activeTab === 'scores' && (
+                <ScoreManagementView
+                  currentUser={currentUser}
+                />
+              )}
+
               {activeTab === 'supabase' && (
                 <SupabaseSyncView
                   currentQuestions={questionBank}
@@ -278,6 +285,7 @@ export default function App() {
         <PrintExamModal
           questions={printQuestions}
           settings={printSettings}
+          currentUser={currentUser}
           onClose={() => setIsPrintModalOpen(false)}
         />
       )}

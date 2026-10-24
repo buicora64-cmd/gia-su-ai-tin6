@@ -14,7 +14,8 @@ import {
   Clock,
   Award,
   Sparkles,
-  ChevronRight
+  ChevronRight,
+  FileSpreadsheet
 } from 'lucide-react';
 import { 
   isSupabaseConfigured, 
@@ -23,8 +24,10 @@ import {
   testSupabaseConnection, 
   fetchQuestionsFromSupabase, 
   uploadQuestionsToSupabase, 
-  fetchQuizResultsFromSupabase 
+  fetchQuizResultsFromSupabase,
+  fetchAllScoresForExcel
 } from '../lib/supabase';
+import { exportScoresToExcel } from '../utils/excelExport';
 import { Question } from '../types';
 
 interface SupabaseSyncViewProps {
@@ -430,21 +433,37 @@ export const SupabaseSyncView: React.FC<SupabaseSyncViewProps> = ({
 
       {/* Cloud Quiz Results History */}
       <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
           <div className="flex items-center gap-2">
             <History className="w-5 h-5 text-indigo-600" />
             <h2 className="text-lg font-bold text-slate-900">
               Lịch sử làm bài đã lưu trên Supabase Cloud
             </h2>
           </div>
-          <button
-            onClick={loadCloudResults}
-            disabled={loadingResults}
-            className="p-2 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors"
-            title="Tải lại lịch sử"
-          >
-            <RefreshCw className={`w-4 h-4 ${loadingResults ? 'animate-spin' : ''}`} />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={async () => {
+                const data = await fetchAllScoresForExcel();
+                if (data.length === 0) {
+                  alert('Chưa có kết quả bài thi nào để xuất Excel!');
+                  return;
+                }
+                exportScoresToExcel(data);
+              }}
+              className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+            >
+              <FileSpreadsheet className="w-4 h-4" />
+              <span>Xuất Excel (.xlsx)</span>
+            </button>
+            <button
+              onClick={loadCloudResults}
+              disabled={loadingResults}
+              className="p-2 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors cursor-pointer"
+              title="Tải lại lịch sử"
+            >
+              <RefreshCw className={`w-4 h-4 ${loadingResults ? 'animate-spin' : ''}`} />
+            </button>
+          </div>
         </div>
 
         {loadingResults ? (

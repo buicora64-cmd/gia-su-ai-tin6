@@ -8,27 +8,72 @@ import {
   Check, 
   Info,
   Layers,
-  HelpCircle
+  HelpCircle,
+  Lock,
+  Unlock,
+  ShieldCheck,
+  AlertCircle
 } from 'lucide-react';
-import { Question, QuizSettings } from '../types';
+import { Question, QuizSettings, UserProfile } from '../types';
 
 interface PrintExamModalProps {
   questions: Question[];
   settings: QuizSettings;
+  currentUser?: UserProfile | null;
   onClose: () => void;
 }
 
 export const PrintExamModal: React.FC<PrintExamModalProps> = ({
   questions,
   settings,
+  currentUser,
   onClose,
 }) => {
-  const [includeAnswerKey, setIncludeAnswerKey] = useState<boolean>(true);
+  // Always default to false (uncheck by default) as requested
+  const [includeAnswerKey, setIncludeAnswerKey] = useState<boolean>(false);
   const [includeBubbleSheet, setIncludeBubbleSheet] = useState<boolean>(true);
   const [schoolName, setSchoolName] = useState<string>('TRƯỜNG THCS ....................................................');
   const [examTitle, setExamTitle] = useState<string>('ĐỀ KIỂM TRA ÔN TẬP - GIA SƯ TIN HỌC 6');
   const [timeText, setTimeText] = useState<string>('Tác giả: GV: CÔ RA AI • Thời gian: 15 phút');
   const [downloadSuccess, setDownloadSuccess] = useState<boolean>(false);
+
+  // Teacher unlock state for printing answer key
+  const [teacherUnlocked, setTeacherUnlocked] = useState<boolean>(false);
+  const [showTeacherAuthModal, setShowTeacherAuthModal] = useState<boolean>(false);
+  const [teacherPinInput, setTeacherPinInput] = useState<string>('');
+  const [pinError, setPinError] = useState<string | null>(null);
+
+  // Check if current user has teacher/admin role
+  const isTeacherUser = Boolean(
+    currentUser?.role === 'teacher' ||
+    currentUser?.role === 'admin' ||
+    currentUser?.username?.toLowerCase().includes('giaovien') ||
+    currentUser?.username?.toLowerCase().includes('cora') ||
+    currentUser?.username?.toLowerCase() === 'teacher'
+  );
+
+  const hasTeacherPrivilege = isTeacherUser || teacherUnlocked;
+
+  const handleVerifyTeacherPin = (e: React.FormEvent) => {
+    e.preventDefault();
+    const pin = teacherPinInput.trim().toLowerCase();
+    if (
+      pin === '123456' || 
+      pin === 'cora' || 
+      pin === 'coraai' || 
+      pin === 'giaovien' || 
+      pin === 'tinhoc6' ||
+      pin === 'admin'
+    ) {
+      setTeacherUnlocked(true);
+      setShowTeacherAuthModal(false);
+      setTeacherPinInput('');
+      setPinError(null);
+      setIncludeAnswerKey(true); // automatically check after teacher unlocks
+    } else {
+      setPinError('Mã xác thực Giáo viên không đúng. Vui lòng thử lại!');
+    }
+  };
 
   // User simulated selections on the bubble sheet in preview (optional interactive feature)
   const [simulatedAnswers, setSimulatedAnswers] = useState<Record<number, number>>({});
@@ -308,16 +353,46 @@ export const PrintExamModal: React.FC<PrintExamModalProps> = ({
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            {/* Options checkboxes */}
-            <label className="flex items-center gap-1.5 text-xs text-slate-700 cursor-pointer select-none font-medium px-2 py-1 rounded-lg hover:bg-slate-200/60">
-              <input
-                type="checkbox"
-                checked={includeAnswerKey}
-                onChange={(e) => setIncludeAnswerKey(e.target.checked)}
-                className="rounded text-indigo-600 focus:ring-indigo-500"
-              />
-              <span>In kèm đáp án</span>
-            </label>
+            {/* Options checkboxes: In kèm đáp án (Chỉ cho phép Giáo viên) */}
+            {hasTeacherPrivilege ? (
+              <label className="flex items-center gap-1.5 text-xs text-slate-800 cursor-pointer select-none font-bold px-2.5 py-1.5 rounded-xl bg-indigo-50/70 border border-indigo-200 hover:bg-indigo-100/70 transition-all">
+                <input
+                  type="checkbox"
+                  checked={includeAnswerKey}
+                  onChange={(e) => setIncludeAnswerKey(e.target.checked)}
+                  className="rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4 cursor-pointer"
+                />
+                <span>In kèm đáp án</span>
+                <span className="text-[10px] font-bold text-indigo-700 bg-white px-1.5 py-0.5 rounded border border-indigo-200">
+                  Giáo viên
+                </span>
+              </label>
+            ) : (
+              <div 
+                className="flex items-center gap-1.5 text-xs text-slate-400 select-none font-medium px-2.5 py-1.5 rounded-xl bg-slate-100 border border-slate-200/80 cursor-not-allowed group relative"
+                title="Học sinh không được phép xem trước đáp án. Tính năng này đã bị khóa đối với tài khoản học sinh."
+              >
+                <input
+                  type="checkbox"
+                  disabled
+                  checked={false}
+                  className="rounded text-slate-300 w-4 h-4 cursor-not-allowed"
+                />
+                <span className="text-slate-400">In kèm đáp án</span>
+                <span className="text-[10px] font-bold text-slate-500 bg-slate-200/80 px-1.5 py-0.5 rounded flex items-center gap-1">
+                  <Lock className="w-3 h-3 text-slate-500" />
+                  Khóa (HS)
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowTeacherAuthModal(true)}
+                  className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 hover:underline cursor-pointer ml-0.5"
+                  title="Cô là Giáo viên? Bấm vào đây để mở khóa"
+                >
+                  Mở khóa GV
+                </button>
+              </div>
+            )}
 
             <label className="flex items-center gap-1.5 text-xs text-slate-700 cursor-pointer select-none font-medium px-2 py-1 rounded-lg hover:bg-slate-200/60">
               <input
@@ -596,6 +671,84 @@ export const PrintExamModal: React.FC<PrintExamModalProps> = ({
           )}
 
         </div>
+
+        {/* Teacher PIN Unlock Modal Dialog */}
+        {showTeacherAuthModal && (
+          <div className="fixed inset-0 z-[70] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-200">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div className="flex items-center gap-2 text-indigo-700 font-bold">
+                  <ShieldCheck className="w-5 h-5 text-indigo-600" />
+                  <span>Xác thực Quyền Giáo Viên</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowTeacherAuthModal(false);
+                    setPinError(null);
+                    setTeacherPinInput('');
+                  }}
+                  className="text-slate-400 hover:text-slate-600 p-1.5 rounded-xl hover:bg-slate-100 transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <form onSubmit={handleVerifyTeacherPin} className="mt-4 space-y-4">
+                <div className="p-3 bg-amber-50 rounded-2xl border border-amber-200/80 text-xs text-amber-900 leading-relaxed">
+                  Tính năng <strong>In kèm đáp án</strong> chỉ dành cho Giáo viên để bảo mật nội dung thi. Học sinh không được phép xem trước đáp án.
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    Mã PIN / Mật khẩu Giáo viên:
+                  </label>
+                  <input
+                    type="password"
+                    autoFocus
+                    value={teacherPinInput}
+                    onChange={(e) => {
+                      setTeacherPinInput(e.target.value);
+                      if (pinError) setPinError(null);
+                    }}
+                    placeholder="Nhập mã PIN (VD: 123456 hoặc cora)"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                  />
+                  {pinError && (
+                    <div className="flex items-center gap-1.5 text-rose-600 text-xs mt-2 font-medium">
+                      <AlertCircle className="w-4 h-4 shrink-0" />
+                      <span>{pinError}</span>
+                    </div>
+                  )}
+                  <p className="text-[11px] text-slate-500 mt-2">
+                    Mã xác nhận nhanh: <code className="bg-slate-100 px-1.5 py-0.5 rounded font-mono text-indigo-700 font-bold">123456</code> hoặc <code className="bg-slate-100 px-1.5 py-0.5 rounded font-mono text-indigo-700 font-bold">cora</code>
+                  </p>
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowTeacherAuthModal(false);
+                      setPinError(null);
+                      setTeacherPinInput('');
+                    }}
+                    className="px-3.5 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+                  >
+                    Hủy bỏ
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Unlock className="w-3.5 h-3.5" />
+                    <span>Mở Khóa Giáo Viên</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
 
       </div>
     </div>

@@ -37,6 +37,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [regUsername, setRegUsername] = useState('');
   const [regFullName, setRegFullName] = useState('');
   const [regClass, setRegClass] = useState('6A1');
+  const [regRole, setRegRole] = useState<'student' | 'teacher'>('student');
   const [regPassword, setRegPassword] = useState('');
   const [regConfirmPassword, setRegConfirmPassword] = useState('');
 
@@ -88,7 +89,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       return;
     }
     if (!regFullName.trim()) {
-      setErrorMsg('Vui lòng nhập Họ và tên học sinh');
+      setErrorMsg(regRole === 'teacher' ? 'Vui lòng nhập Họ và tên giáo viên' : 'Vui lòng nhập Họ và tên học sinh');
       return;
     }
     if (!regPassword || regPassword.length < 4) {
@@ -105,7 +106,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       username: cleanUsername,
       password: regPassword,
       fullName: regFullName,
-      studentClass: regClass,
+      studentClass: regRole === 'teacher' ? 'Giáo viên' : regClass,
+      role: regRole,
     });
     setLoading(false);
 
@@ -279,6 +281,43 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           {/* REGISTER FORM */}
           {mode === 'register' && (
             <form onSubmit={handleRegister} className="space-y-3.5">
+              {/* Role Selection */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  Vai trò người dùng
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRegRole('student');
+                      if (regClass === 'Giáo viên') setRegClass('6A1');
+                    }}
+                    className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                      regRole === 'student'
+                        ? 'bg-indigo-50 border-indigo-500 text-indigo-700 ring-2 ring-indigo-200'
+                        : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    <span>🎒 Học sinh</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRegRole('teacher');
+                      setRegClass('Giáo viên');
+                    }}
+                    className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                      regRole === 'teacher'
+                        ? 'bg-indigo-50 border-indigo-500 text-indigo-700 ring-2 ring-indigo-200'
+                        : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    <span>👩‍🏫 Giáo viên</span>
+                  </button>
+                </div>
+              </div>
+
               <div>
                 <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
                   Tên đăng nhập

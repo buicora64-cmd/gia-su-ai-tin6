@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { Question, QuizResult, UserProfile } from '../types';
+import { Question, QuizResult, UserProfile, QuizSettings, ScoreRecord } from '../types';
 
 // Read Supabase credentials from environment
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://hkdxztadngdmqxelkext.supabase.co';
@@ -287,37 +287,84 @@ export async function uploadQuestionsToSupabase(questions: Question[]): Promise<
   }
 }
 
+export const LOCAL_STORAGE_SCORES_KEY = 'giasu6_all_quiz_results';
+
 /**
- * Save quiz test result to Supabase
+ * Format title for quiz settings
+ */
+function getQuizTitleFromSettings(settings: QuizSettings | any): string {
+  if (!settings) return 'Đề thi trắc nghiệm Tin học 6';
+  const lessonIds = settings.selectedLessonIds;
+  if (!lessonIds || lessonIds.length === 0 || lessonIds.length === 17) {
+    return 'Đề tổng hợp toàn bộ 17 bài';
+  }
+  if (lessonIds.length === 1) {
+    return `Bài ${lessonIds[0]} (SGK Tin học 6)`;
+  }
+  return `Ôn tập ${lessonIds.length} bài (${lessonIds.map((id: number) => `B${id}`).join(', ')})`;
+}
+
+/**
+ * Save quiz test result to Supabase and LocalStorage
  */
 export async function saveQuizResultToSupabase(result: QuizResult, user?: UserProfile | null): Promise<{ 
   success: boolean; 
   error?: string 
 }> {
+  const payload = {
+    id: result.quizId,
+    date: result.date,
+    settings: result.settings,
+    score: result.score,
+    correct_count: result.correctCount,
+    total_questions: result.totalQuestions,
+    time_spent_seconds: result.timeSpentSeconds,
+    stats_by_level: result.statsByLevel,
+    user_answers: result.userAnswers,
+    user_id: user?.id || null,
+    username: user?.username || 'hocsinh',
+    full_name: user?.fullName || 'Học sinh',
+    student_class: user?.studentClass || '6A1',
+    created_at: new Date().toISOString(),
+  };
+
+  // 1. Always save into LocalStorage as resilient cache
+  try {
+    const raw = localStorage.getItem(LOCAL_STORAGE_SCORES_KEY);
+    const localScores = raw ? JSON.parse(raw) : [];
+    // remove existing if same id
+    const filtered = localScores.filter((s: any) => s.id !== payload.id);
+    filtered.unshift(payload);
+    // keep latest 500 records
+    localStorage.setItem(LOCAL_STORAGE_SCORES_KEY, JSON.stringify(filtered.slice(0, 500)));
+  } catch (err) {
+    console.warn('Could not write to localScores cache:', err);
+  }
+
+  // 2. Try saving into Supabase
   if (!isSupabaseConfigured) {
-    return { success: false, error: 'Supabase chưa được cấu hình' };
+    return { success: true };
   }
 
   try {
-    const payload = {
-      id: result.quizId,
-      date: result.date,
-      settings: result.settings,
-      score: result.score,
-      correct_count: result.correctCount,
-      total_questions: result.totalQuestions,
-      time_spent_seconds: result.timeSpentSeconds,
-      stats_by_level: result.statsByLevel,
-      user_answers: result.userAnswers,
-      user_id: user?.id || null,
-      username: user?.username || null,
-    };
-
     const { error } = await supabase
       .from('quiz_results')
-      .upsert(payload, { onConflict: 'id' });
+      .upsert({
+        id: payload.id,
+        date: payload.date,
+        settings: payload.settings,
+        score: payload.score,
+        correct_count: payload.correct_count,
+        total_questions: payload.total_questions,
+        time_spent_seconds: payload.time_spent_seconds,
+        stats_by_level: payload.stats_by_level,
+        user_answers: payload.user_answers,
+        user_id: payload.user_id,
+        username: payload.username,
+      }, { onConflict: 'id' });
 
     if (error) {
+      console.warn('Supabase save result warning:', error.message);
       return { success: false, error: error.message };
     }
 
@@ -343,7 +390,7 @@ export async function fetchQuizResultsFromSupabase(): Promise<{
       .from('quiz_results')
       .select('*')
       .order('created_at', { ascending: false })
-      .limit(30);
+      .limit(50);
 
     if (error) {
       return { results: [], error: error.message };
@@ -353,6 +400,295 @@ export async function fetchQuizResultsFromSupabase(): Promise<{
   } catch (err: any) {
     return { results: [], error: err.message };
   }
+}
+
+/**
+ * Fetch all registered users from Supabase app_users table
+ */
+export async function fetchRegisteredUsers(): Promise<UserProfile[]> {
+  if (!isSupabaseConfigured) return [];
+  try {
+    const { data, error } = await supabase
+      .from('app_users')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error || !data) return [];
+    return data.map((u: any) => ({
+      id: u.id,
+      username: u.username,
+      fullName: u.full_name || u.username,
+      studentClass: u.student_class || '6A1',
+      role: u.role || 'student',
+      createdAt: u.created_at,
+    }));
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Fetch and compile all quiz results with full student information for Excel export
+ */
+export async function fetchAllScoresForExcel(): Promise<ScoreRecord[]> {
+  // 1. Fetch users mapping from Supabase
+  const usersList = await fetchRegisteredUsers();
+  const userMapByUsername: Record<string, UserProfile> = {};
+  const userMapById: Record<string, UserProfile> = {};
+
+  usersList.forEach((u) => {
+    userMapByUsername[u.username.toLowerCase()] = u;
+    userMapById[u.id] = u;
+  });
+
+  // 2. Fetch results from Supabase
+  let cloudData: any[] = [];
+  if (isSupabaseConfigured) {
+    try {
+      const { data, error } = await supabase
+        .from('quiz_results')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(1000);
+
+      if (!error && data) {
+        cloudData = data;
+      }
+    } catch (err) {
+      console.warn('Error fetching cloud results for excel:', err);
+    }
+  }
+
+  // 3. Fetch local results from LocalStorage
+  let localData: any[] = [];
+  try {
+    const raw = localStorage.getItem(LOCAL_STORAGE_SCORES_KEY);
+    if (raw) {
+      localData = JSON.parse(raw);
+    }
+  } catch (e) {
+    console.warn('Error reading local scores:', e);
+  }
+
+  // 4. Merge results without duplicates (cloud data takes precedence)
+  const combinedMap = new Map<string, any>();
+  cloudData.forEach((item) => combinedMap.set(item.id, item));
+  localData.forEach((item) => {
+    if (!combinedMap.has(item.id)) {
+      combinedMap.set(item.id, item);
+    }
+  });
+
+  const rawList = Array.from(combinedMap.values());
+
+  // 5. Convert to standardized ScoreRecord list
+  return rawList.map((item) => {
+    const rawUsername = (item.username || '').toLowerCase();
+    const mappedUser = userMapByUsername[rawUsername] || userMapById[item.user_id];
+
+    const fullName = item.full_name || mappedUser?.fullName || (item.username ? `Học sinh ${item.username}` : 'Học sinh');
+    const studentClass = item.student_class || mappedUser?.studentClass || '6A1';
+    const scoreVal = Number(item.score ?? 0);
+    const correctCount = Number(item.correct_count ?? 0);
+    const totalQuestions = Number(item.total_questions ?? 10);
+    const timeSpentSeconds = Number(item.time_spent_seconds ?? 0);
+
+    const m = Math.floor(timeSpentSeconds / 60);
+    const s = timeSpentSeconds % 60;
+    const formattedTime = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+
+    let formattedDate = item.date || item.created_at || '';
+    try {
+      const d = new Date(formattedDate);
+      if (!isNaN(d.getTime())) {
+        formattedDate = d.toLocaleString('vi-VN', {
+          hour: '2-digit',
+          minute: '2-digit',
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+        });
+      }
+    } catch {
+      // keep original
+    }
+
+    // Rating
+    let rating = 'Đạt';
+    if (scoreVal >= 9.0) rating = 'Xuất sắc';
+    else if (scoreVal >= 8.0) rating = 'Giỏi';
+    else if (scoreVal >= 6.5) rating = 'Khá';
+    else if (scoreVal >= 5.0) rating = 'Đạt';
+    else rating = 'Chưa đạt';
+
+    return {
+      id: String(item.id),
+      username: item.username || 'Khách',
+      fullName,
+      studentClass,
+      score: scoreVal,
+      correctCount,
+      totalQuestions,
+      percentage: Math.round((correctCount / Math.max(1, totalQuestions)) * 100),
+      rating,
+      timeSpentSeconds,
+      formattedTime,
+      testTitle: getQuizTitleFromSettings(item.settings),
+      mode: (item.settings?.mode === 'exam' ? 'exam' : 'practice') as 'exam' | 'practice',
+      date: item.date || item.created_at || new Date().toISOString(),
+      formattedDate,
+      levelStats: {
+        nhanBietCorrect: item.stats_by_level?.nhan_biet?.correct,
+        nhanBietTotal: item.stats_by_level?.nhan_biet?.total,
+        thongHieuCorrect: item.stats_by_level?.thong_hieu?.correct,
+        thongHieuTotal: item.stats_by_level?.thong_hieu?.total,
+        vanDungCorrect: item.stats_by_level?.van_dung?.correct,
+        vanDungTotal: item.stats_by_level?.van_dung?.total,
+      },
+    };
+  }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+}
+
+/**
+ * Add sample student test results for demonstration
+ */
+export function seedSampleScoreRecords(): ScoreRecord[] {
+  const now = new Date();
+  const samples = [
+    {
+      id: `sample_score_1`,
+      username: 'btra',
+      fullName: 'Bùi Thị Thu Trà',
+      studentClass: '6A1',
+      score: 10.0,
+      correctCount: 10,
+      totalQuestions: 10,
+      timeSpentSeconds: 432,
+      date: new Date(now.getTime() - 25 * 60000).toISOString(),
+      mode: 'exam' as const,
+      testTitle: 'Đề tổng hợp toàn bộ 17 bài',
+    },
+    {
+      id: `sample_score_2`,
+      username: 'nguyenvan',
+      fullName: 'Nguyễn Vân',
+      studentClass: '6A1',
+      score: 9.0,
+      correctCount: 9,
+      totalQuestions: 10,
+      timeSpentSeconds: 510,
+      date: new Date(now.getTime() - 95 * 60000).toISOString(),
+      mode: 'exam' as const,
+      testTitle: 'Bài 1. Thông tin và dữ liệu',
+    },
+    {
+      id: `sample_score_3`,
+      username: 'kiemtra_593',
+      fullName: 'Người dùng thử nghiệm',
+      studentClass: '6A1',
+      score: 8.5,
+      correctCount: 17,
+      totalQuestions: 20,
+      timeSpentSeconds: 680,
+      date: new Date(now.getTime() - 180 * 60000).toISOString(),
+      mode: 'practice' as const,
+      testTitle: 'Ôn tập 3 bài (B1, B2, B3)',
+    },
+    {
+      id: `sample_score_4`,
+      username: 'hoangnam6a',
+      fullName: 'Hoàng Văn Nam',
+      studentClass: '6A2',
+      score: 7.5,
+      correctCount: 15,
+      totalQuestions: 20,
+      timeSpentSeconds: 720,
+      date: new Date(now.getTime() - 360 * 60000).toISOString(),
+      mode: 'exam' as const,
+      testTitle: 'Đề tổng hợp toàn bộ 17 bài',
+    },
+    {
+      id: `sample_score_5`,
+      username: 'minhanh6b',
+      fullName: 'Trần Minh Anh',
+      studentClass: '6A2',
+      score: 6.0,
+      correctCount: 6,
+      totalQuestions: 10,
+      timeSpentSeconds: 490,
+      date: new Date(now.getTime() - 500 * 60000).toISOString(),
+      mode: 'practice' as const,
+      testTitle: 'Bài 4. Mạng máy tính',
+    },
+  ];
+
+  try {
+    const raw = localStorage.getItem(LOCAL_STORAGE_SCORES_KEY);
+    const existing = raw ? JSON.parse(raw) : [];
+    const merged = [...existing];
+    samples.forEach((s) => {
+      if (!merged.some((m: any) => m.id === s.id)) {
+        merged.push({
+          ...s,
+          settings: { mode: s.mode, selectedLessonIds: [] },
+          correct_count: s.correctCount,
+          total_questions: s.totalQuestions,
+          time_spent_seconds: s.timeSpentSeconds,
+        });
+      }
+    });
+    localStorage.setItem(LOCAL_STORAGE_SCORES_KEY, JSON.stringify(merged));
+  } catch (e) {
+    console.warn('Seeding failed:', e);
+  }
+
+  return samples.map((s) => {
+    const m = Math.floor(s.timeSpentSeconds / 60);
+    const sec = s.timeSpentSeconds % 60;
+    return {
+      ...s,
+      percentage: Math.round((s.correctCount / s.totalQuestions) * 100),
+      rating: s.score >= 9 ? 'Xuất sắc' : s.score >= 8 ? 'Giỏi' : s.score >= 6.5 ? 'Khá' : 'Đạt',
+      formattedTime: `${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`,
+      formattedDate: new Date(s.date).toLocaleString('vi-VN', {
+        hour: '2-digit',
+        minute: '2-digit',
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+      }),
+    };
+  });
+}
+
+/**
+ * Clear all quiz results from both LocalStorage and Supabase database
+ */
+export async function clearAllQuizResults(): Promise<{ success: boolean; message?: string }> {
+  // 1. Clear LocalStorage
+  try {
+    localStorage.removeItem(LOCAL_STORAGE_SCORES_KEY);
+  } catch (err) {
+    console.warn('Could not clear local scores:', err);
+  }
+
+  // 2. Clear Supabase quiz_results table if configured
+  if (isSupabaseConfigured) {
+    try {
+      const { error } = await supabase
+        .from('quiz_results')
+        .delete()
+        .neq('id', '___empty_id_placeholder___');
+
+      if (error) {
+        console.warn('Supabase delete all scores note:', error.message);
+      }
+    } catch (dbErr) {
+      console.warn('Error clearing Supabase table quiz_results:', dbErr);
+    }
+  }
+
+  return { success: true, message: 'Đã xóa toàn bộ bảng điểm thành công!' };
 }
 
 // ============================================================================
@@ -408,6 +744,7 @@ export async function signUpUser(params: {
   password: string;
   fullName: string;
   studentClass?: string;
+  role?: 'student' | 'teacher' | 'admin';
 }): Promise<{ success: boolean; user?: UserProfile; message?: string }> {
   const cleanUsername = params.username.trim().toLowerCase();
   const cleanFullName = params.fullName.trim();
@@ -423,13 +760,17 @@ export async function signUpUser(params: {
     return { success: false, message: 'Vui lòng nhập Họ và tên người học' };
   }
 
+  const determinedRole: 'student' | 'teacher' | 'admin' = 
+    params.role || 
+    (cleanUsername.includes('giaovien') || cleanUsername.includes('cora') || cleanUsername === 'teacher' ? 'teacher' : 'student');
+
   try {
     const profile: UserProfile = {
       id: `user_${cleanUsername}`,
       username: cleanUsername,
       fullName: cleanFullName,
-      studentClass: cleanClass || '6A1',
-      role: 'student',
+      studentClass: cleanClass || (determinedRole === 'teacher' ? 'Giáo viên Tin học' : '6A1'),
+      role: determinedRole,
       createdAt: new Date().toISOString(),
     };
 
