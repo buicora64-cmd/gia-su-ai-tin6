@@ -5,6 +5,7 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { synthesizeQuestionsForLesson } from './src/utils/aiGeneratorEngine';
+import { generateCoraFallbackResponse } from './src/utils/coraKnowledgeBase';
 
 dotenv.config();
 
@@ -158,6 +159,96 @@ YÊU CẦU BẮT BUỘC:
       console.error('Error in synthesis engine:', synthErr);
       return res.status(500).json({ error: 'Không thể tạo câu hỏi lúc này' });
     }
+  });
+
+  // API Route: Gia Sư Cô Ra AI Tutor Chat
+  app.post('/api/cora-ai-chat', async (req: Request, res: Response) => {
+    const { message, history = [], lessonId, lessonTitle } = req.body;
+
+    if (!message || typeof message !== 'string' || !message.trim()) {
+      return res.status(400).json({ error: 'Vui lòng nhập nội dung câu hỏi' });
+    }
+
+    const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY || process.env.GOOGLE_API_KEY;
+
+    if (apiKey) {
+      try {
+        const ai = new GoogleGenAI({
+          apiKey,
+          httpOptions: {
+            headers: {
+              'User-Agent': 'aistudio-build',
+            },
+          },
+        });
+
+        const systemInstruction = `
+Bạn là "Cô Ra AI" - Gia sư ảo thông minh, ân cần, kiên nhẫn và mẫu mực môn Tin học 6 theo sách giáo khoa "Kết nối tri thức với cuộc sống" (NXB Giáo Dục Việt Nam).
+Tác giả phần mềm: GV: CÔ RA AI.
+Xưng hô chuẩn mực: "Cô" và "em". Luôn giữ thái độ thân thiện, khích lệ tinh thần học tập của học sinh lớp 6.
+
+Trách nhiệm và phong cách giảng dạy:
+1. Giải đáp kiến thức, câu hỏi, bài tập trong 17 bài học SGK Tin học 6:
+   - Bài 1: Thông tin và dữ liệu
+   - Bài 2: Xử lí thông tin (Thiết bị vào, CPU, Bộ nhớ, Thiết bị ra)
+   - Bài 3: Thông tin trong máy tính (Dãy bit 0 và 1, đơn vị B, KB, MB, GB, TB)
+   - Bài 4: Mạng máy tính (Lợi ích chia sẻ tài nguyên, thiết bị kết nối, mạng không dây)
+   - Bài 5: Internet (Đặc điểm, nhà cung cấp ISP, học trực tuyến E-learning)
+   - Bài 6: Mạng thông tin toàn cầu WWW (Siêu văn bản, website, trình duyệt web)
+   - Bài 7: Tìm kiếm thông tin trên Internet (Từ khóa, dấu ngoặc kép, dấu trừ, dấu cộng)
+   - Bài 8: Thư điện tử Email (Ký tự @, tiêu đề, tệp đính kèm kẹp ghim, spam)
+   - Bài 9: An toàn thông tin trên Internet (Quy tắc SMART, mật khẩu an toàn)
+   - Bài 10: Sơ đồ tư duy (Tony Buzan, chủ đề chính, nhánh chính, nhánh con)
+   - Bài 11: Định dạng văn bản (Font chữ, căn lề đoạn văn, Page Setup)
+   - Bài 12: Trình bày thông tin ở dạng bảng (Insert Table, Merge Cells, Split Cells)
+   - Bài 13: Thực hành Tìm kiếm và thay thế (Ctrl+F, Ctrl+H, Replace All)
+   - Bài 14: Thực hành hoàn thiện sổ lưu niệm (Cover Page, Text from File, Wrap Text)
+   - Bài 15: Thuật toán (Đầu vào Input, Đầu ra Output, sơ đồ khối elip, bình hành, chữ nhật, hình thoi)
+   - Bài 16: Các cấu trúc điều khiển (Tuần tự, Rẽ nhánh thiếu/đủ, Lặp)
+   - Bài 17: Chương trình máy tính & Lập trình trực quan Scratch (Sự kiện cờ xanh, chuyển động, hiển thị, cảm biến, điều khiển)
+2. Hướng dẫn giải từng bước rõ ràng, dễ hiểu, có ví dụ minh họa gần gũi với lứa tuổi học sinh lớp 6.
+3. Trình bày bằng định dạng Markdown đẹp mắt: in đậm tiêu đề, gạch đầu dòng, danh sách các bước.
+${lessonId ? `Học sinh đang chọn tìm hiểu về: ${lessonTitle || `Bài ${lessonId}`}. Hãy ưu tiên giải thích theo bài học này.` : ''}
+`;
+
+        const formattedContents: any[] = [];
+        if (Array.isArray(history)) {
+          history.slice(-6).forEach((h: any) => {
+            if (h.role === 'user' || h.role === 'model') {
+              formattedContents.push({
+                role: h.role === 'user' ? 'user' : 'model',
+                parts: [{ text: h.text || h.content || '' }],
+              });
+            }
+          });
+        }
+
+        formattedContents.push({
+          role: 'user',
+          parts: [{ text: message.trim() }],
+        });
+
+        const response = await ai.models.generateContent({
+          model: 'gemini-3.8-flash',
+          contents: formattedContents,
+          config: {
+            systemInstruction,
+            temperature: 0.7,
+          },
+        });
+
+        const reply = response.text ? response.text.trim() : '';
+        if (reply) {
+          return res.json({ reply, source: 'gemini-3.8-flash' });
+        }
+      } catch (geminiChatErr) {
+        console.warn('Gemini tutor chat fallback to knowledge base:', geminiChatErr);
+      }
+    }
+
+    // Intelligent Curriculum Knowledge Base Fallback
+    const fallbackReply = generateCoraFallbackResponse(message.trim(), lessonId);
+    return res.json({ reply: fallbackReply, source: 'curriculum-knowledge-base' });
   });
 
   // Serve static files in production or hook up Vite middlewares in development

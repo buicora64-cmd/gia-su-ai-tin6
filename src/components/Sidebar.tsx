@@ -17,15 +17,17 @@ import {
   LogOut,
   LogIn,
   GraduationCap,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Bot
 } from 'lucide-react';
 import { isSoundEnabled, setSoundEnabled } from '../utils/audio';
 import { UserProfile } from '../types';
 
 interface SidebarProps {
-  activeTab: 'quiz' | 'bank' | 'notes' | 'ai' | 'flashcard' | 'supabase' | 'scores';
-  setActiveTab: (tab: 'quiz' | 'bank' | 'notes' | 'ai' | 'flashcard' | 'supabase' | 'scores') => void;
+  activeTab: 'quiz' | 'bank' | 'notes' | 'ai' | 'flashcard' | 'supabase' | 'scores' | 'cora-ai';
+  setActiveTab: (tab: 'quiz' | 'bank' | 'notes' | 'ai' | 'flashcard' | 'supabase' | 'scores' | 'cora-ai') => void;
   onOpenPrint?: () => void;
+  onOpenCoraAi?: () => void;
   totalQuestionsCount: number;
   currentUser: UserProfile | null;
   onLogout: () => void;
@@ -36,6 +38,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   activeTab,
   setActiveTab,
   onOpenPrint,
+  onOpenCoraAi,
   totalQuestionsCount,
   currentUser,
   onLogout,
@@ -50,12 +53,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
     setSoundEnabled(next);
   };
 
-  const handleSelectTab = (tab: 'quiz' | 'bank' | 'notes' | 'ai' | 'flashcard' | 'supabase' | 'scores') => {
+  const handleSelectTab = (tab: 'quiz' | 'bank' | 'notes' | 'ai' | 'flashcard' | 'supabase' | 'scores' | 'cora-ai') => {
     setActiveTab(tab);
     setMobileOpen(false);
   };
 
   const navItems = [
+    {
+      id: 'cora-ai' as const,
+      label: 'Gia Sư Cô Ra AI',
+      desc: 'Hỏi đáp giải bài SGK 24/7',
+      icon: Bot,
+      color: 'text-amber-300',
+      activeStyle: 'bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 text-emerald-950 font-black shadow-lg shadow-amber-950/60 border border-amber-300 ring-2 ring-amber-200/50',
+      inactiveIconBg: 'bg-amber-400/20 text-amber-300',
+      activeIconBg: 'bg-emerald-950/20 text-emerald-950',
+      badge: '24/7',
+      badgeStyle: 'bg-amber-400/30 text-amber-200 border border-amber-400/40 font-black',
+    },
     {
       id: 'quiz' as const,
       label: 'Tạo Đề Ôn Tập',
@@ -168,6 +183,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
 
         <div className="flex items-center gap-1.5">
+          {/* Quick Cô Ra AI 24/7 button on mobile */}
+          <button
+            type="button"
+            onClick={onOpenCoraAi ? onOpenCoraAi : () => handleSelectTab('cora-ai')}
+            title="Gia Sư Cô Ra AI 24/7"
+            className="flex items-center gap-1 px-2 py-1 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 text-emerald-950 font-black text-xs shadow-xs border border-amber-300 cursor-pointer"
+          >
+            <Bot className="w-3.5 h-3.5 text-emerald-950 stroke-[2.5]" />
+            <span className="hidden sm:inline">Cô Ra AI</span>
+            <span className="bg-amber-100/90 text-emerald-950 text-[10px] px-1.5 py-0.2 rounded-full font-bold">24/7</span>
+          </button>
+
           {currentUser ? (
             <button
               onClick={onOpenLogin}
@@ -260,8 +287,29 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
         </div>
 
+        {/* Featured Callout Button: Gia Sư Cô Ra AI 24/7 (Image 1 Style) */}
+        <div className="px-3 pt-3 pb-1 relative z-10">
+          <button
+            type="button"
+            onClick={onOpenCoraAi ? onOpenCoraAi : () => handleSelectTab('cora-ai')}
+            className="w-full py-2.5 px-3.5 rounded-2xl bg-gradient-to-r from-amber-400 via-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 active:scale-98 text-emerald-950 font-black shadow-lg shadow-amber-500/25 flex items-center justify-between transition-all cursor-pointer border border-amber-300 group"
+          >
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-7 h-7 rounded-lg bg-emerald-950/15 flex items-center justify-center text-emerald-950 group-hover:scale-110 transition-transform shrink-0">
+                <Bot className="w-4 h-4 text-emerald-950 stroke-[2.5]" />
+              </div>
+              <span className="text-sm font-extrabold tracking-tight text-emerald-950 truncate">
+                Gia Sư Cô Ra AI
+              </span>
+            </div>
+            <span className="bg-amber-100/95 text-emerald-950 font-black text-xs px-2.5 py-0.5 rounded-full border border-amber-200/90 shadow-2xs shrink-0">
+              24/7
+            </span>
+          </button>
+        </div>
+
         {/* Section Label: THANH CHỌN CHỨC NĂNG DỌC */}
-        <div className="px-5 pt-5 pb-2.5 flex items-center justify-between">
+        <div className="px-5 pt-3 pb-2 flex items-center justify-between">
           <span className="text-[11px] font-extrabold uppercase tracking-wider text-indigo-300/80 flex items-center gap-1.5">
             <Compass className="w-3.5 h-3.5 text-indigo-400" />
             Thanh Chọn Chức Năng
